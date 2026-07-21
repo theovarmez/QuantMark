@@ -6,3 +6,5 @@ storage/
 dist/
 node_modules/
 leak_stubs/*.txt
+quantmark_dev.db
+*.log

@@ -47,7 +47,7 @@ WATERMARK_SERIAL = "{serial}"
 MODEL_OWNER = "{company}"
 DEPLOY_ENV = "staging"
 
-# TODO: remove hardcoded keys before prod
+
 """,
     "pastebin": """[{{
   "serial": "{serial}",
@@ -142,7 +142,7 @@ async def main():
     parser.add_argument("serial_code", nargs="?", help="Serial code a filtrar (ej: QM-8F2A-91C0)")
     parser.add_argument("--source", choices=list(LEAK_TEMPLATES.keys()), default=DEFAULT_SOURCE,
                         help="Fuente simulada de la filtración")
-    parser.add_argument("--api-url", default=os.environ.get("QUANTMARK_API_URL", "http://localhost:8766"))
+    parser.add_argument("--api-url", default=os.environ.get("QUANTMARK_API_URL", "http://localhost:8000"))
     parser.add_argument("--api-key", default=os.environ.get("QUANTMARK_API_KEY", ""))
     parser.add_argument("--company", default="", help="Nombre de la empresa dueña")
     args = parser.parse_args()

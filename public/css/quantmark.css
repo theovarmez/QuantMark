@@ -250,7 +250,7 @@ body {
   letter-spacing: 0.1em; text-transform: uppercase;
 }
 .badge-active { background: var(--primary); color: black; }
-.badge-revoked { background: var(--white-10); color: var(--on-surface); border: 1px solid var(--border-subtle); }
+.badge-revoked { background: var(--nothing-red); color: white; border: none; }
 
 /* Animations */
 .fade-in { animation: fadeIn 0.3s ease-out; }
