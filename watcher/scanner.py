@@ -132,7 +132,7 @@ async def _search_pastebin(query: str, psbdmp_key: str) -> list[dict]:
                 params["key"] = psbdmp_key
 
             resp = await client.get(
-                "https://psbdmp.ws/api/search",
+                "https://psbdmp.cc/api/search",
                 params=params,
             )
             if resp.is_success:

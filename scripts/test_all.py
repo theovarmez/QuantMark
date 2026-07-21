@@ -29,7 +29,7 @@ async def _req(client, method, path, **kwargs):
 
 async def main():
     parser = argparse.ArgumentParser(description="QuantMark test_all — full cycle automation")
-    parser.add_argument("--api-url", default=os.environ.get("QUANTMARK_API_URL", "http://localhost:8766"))
+    parser.add_argument("--api-url", default=os.environ.get("QUANTMARK_API_URL", "http://localhost:8000"))
     args = parser.parse_args()
 
     base = args.api_url.rstrip("/")
