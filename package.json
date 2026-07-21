@@ -1,0 +1,21 @@
+{
+  "name": "quantmark",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QuantMark — Watermarking API + Watcher + SPA",
+  "scripts": {
+    "db": "docker compose up -d db",
+    "api": "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "spa": "npx vite",
+    "dev": "concurrently -n API,SPA -c red,cyan \"uvicorn app.main:app --reload --host 0.0.0.0 --port 8000\" \"npx vite\"",
+    "watcher": "python -m watcher daemon",
+    "test:all": "python scripts/test_all.py",
+    "leak": "python scripts/simulate_leak.py",
+    "up": "docker compose up -d",
+    "down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "vite": "^8.1.5"
+  }
+}

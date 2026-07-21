@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: quantmark
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      ENVIRONMENT: development
+      PORT: "${PORT:-8000}"
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/quantmark
+      SECRET_KEY: dev-secret-key
+      STORAGE_BACKEND: local
+      LOG_LEVEL: debug
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  watcher:
+    build: .
+    environment:
+      QUANTMARK_API_URL: http://api:8000
+      QUANTMARK_API_KEY: "${WATCHER_API_KEY}"
+      TARGET_SERIAL_CODES: "${TARGET_SERIAL_CODES}"
+      ALPACA_ENABLED: "true"
+      BINANCE_ENABLED: "true"
+      BRAVE_SEARCH_ENABLED: "${BRAVE_SEARCH_ENABLED:-false}"
+      GITHUB_SEARCH_ENABLED: "${GITHUB_SEARCH_ENABLED:-false}"
+      HUGGINGFACE_SEARCH_ENABLED: "${HUGGINGFACE_SEARCH_ENABLED:-false}"
+      PASTEBIN_SEARCH_ENABLED: "${PASTEBIN_SEARCH_ENABLED:-false}"
+      SCAN_INTERVAL_HOURS: "${SCAN_INTERVAL_HOURS:-6}"
+      SIMULATE_INTERVAL_MINUTES: "${SIMULATE_INTERVAL_MINUTES:-5}"
+      LOG_LEVEL: debug
+    command: python -m watcher daemon
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+storage/
+dist/
+node_modules/
+leak_stubs/*.txt
