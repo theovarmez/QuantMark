@@ -35,6 +35,10 @@ class WatcherSettings(BaseSettings):
     huggingface_search_enabled: bool = True
     huggingface_token: str = ""
 
+    # --- Serper API ---
+    serper_search_enabled: bool = True
+    serper_api_key: str = ""
+
     # --- Pastebin / PSBDMP ---
     pastebin_search_enabled: bool = True
     psbdmp_api_key: str = ""

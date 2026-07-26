@@ -18,6 +18,37 @@ SERIAL_PATTERN = re.compile(r"QM-[0-9A-F]{4}-[0-9A-F]{4}")
 LEAK_STUBS_DIR = os.path.join(os.path.dirname(__file__), "..", "leak_stubs")
 
 
+async def _search_serper(query: str, api_key: str) -> list[dict]:
+    """Search Google using Serper API for the serial code."""
+    if not settings.serper_search_enabled or not api_key:
+        return []
+
+    results = []
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://google.serper.dev/search",
+                json={"q": query, "num": 10},
+                headers={
+                    "X-API-KEY": api_key,
+                    "Content-Type": "application/json"
+                },
+            )
+            if resp.is_success:
+                data = resp.json()
+                for web_result in data.get("organic", []):
+                    results.append({
+                        "source": "serper_google",
+                        "url": web_result.get("link", ""),
+                        "title": web_result.get("title", ""),
+                        "snippet": web_result.get("snippet", ""),
+                        "found_at": datetime.now(timezone.utc).isoformat(),
+                    })
+    except Exception as e:
+        logger.warning("Serper search failed: %s", e)
+
+    return results
+
 async def _search_brave(query: str, api_key: str) -> list[dict]:
     """Search Brave Search API for the serial code."""
     if not settings.brave_search_enabled or not settings.brave_search_api_key:
@@ -183,12 +214,14 @@ async def scan_serial(serial_code: str, api_key: str) -> list[dict]:
     query = serial_code
     all_findings = []
 
+    serper = await _search_serper(query, settings.serper_api_key)
     brave = await _search_brave(query, api_key)
     github = await _search_github(query, settings.github_token)
     hf = await _search_huggingface(query, settings.huggingface_token)
     pastebin = await _search_pastebin(query, settings.psbdmp_api_key)
     stubs = await _search_leak_stubs(query)
 
+    all_findings.extend(serper)
     all_findings.extend(brave)
     all_findings.extend(github)
     all_findings.extend(hf)
