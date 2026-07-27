@@ -28,14 +28,11 @@ steps:
       - "--max-instances=10"
       - "--concurrency=80"
       - "--timeout=300"
-      - "--set-env-vars=DATABASE_URL=${_DATABASE_URL},SECRET_KEY=${_SECRET_KEY},ENVIRONMENT=production,STORAGE_BACKEND=gcs,GCS_BUCKET=${_GCS_BUCKET}"
-      - "--set-secrets=STORAGE_ACCESS_KEY=quantmark-storage-key:latest"
+      - "--set-env-vars=ENVIRONMENT=production,DATABASE_URL=sqlite+aiosqlite:///./quantmark_prod.db,SECRET_KEY=${_SECRET_KEY},STORAGE_BACKEND=local,MOCKUP_MODE=false"
 
 substitutions:
   _REGION: us-central1
-  _DATABASE_URL: postgresql+asyncpg://user:pass@host:5432/quantmark
   _SECRET_KEY: change-me
-  _GCS_BUCKET: quantmark-certificates
 
 options:
   logging: CLOUD_LOGGING_ONLY
