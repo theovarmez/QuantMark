@@ -116,6 +116,16 @@ app.include_router(movements.router)
 app.include_router(reports.router)
 
 
+@app.get("/")
+async def root():
+    return {
+        "name": "QuantMark API",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 @app.get("/stats")
 async def stats(db: AsyncSession = Depends(get_db)):
     models_count = (await db.execute(select(func.count(Model.id)))).scalar() or 0
