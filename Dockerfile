@@ -22,9 +22,12 @@ RUN addgroup --system --gid 1001 quantmark && \
     adduser --system --uid 1001 quantmark
 
 WORKDIR /app
+
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app /app
+
+RUN chown -R quantmark:quantmark /app
 
 USER quantmark
 

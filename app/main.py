@@ -44,9 +44,12 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("starting_up", env=settings.environment)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("database_ready")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("database_ready")
+    except Exception as e:
+        logger.error("database_unavailable", error=str(e))
 
     mockup_task = None
     if settings.mockup_mode:
