@@ -15,6 +15,7 @@ from app.models.watermark import WatermarkID
 from app.schemas.report import ReportCreate, ReportResponse
 from app.services.auth import get_current_company
 from app.services.certificate import generate_certificate
+from app.services.storage import upload_certificate
 
 router = APIRouter(tags=["Reports"])
 
@@ -107,10 +108,10 @@ async def create_report(
 
     cert_blob = f"certificates/{report.id}.pdf"
 
-    if settings.storage_backend == "gcs":
+    if settings.storage_backend in ("minio", "s3"):
+        certificate_url = upload_certificate(pdf_bytes, cert_blob)
+    elif settings.storage_backend == "gcs":
         certificate_url = _upload_to_gcs(pdf_bytes, cert_blob)
-    elif settings.storage_backend == "s3":
-        certificate_url = _upload_to_s3(pdf_bytes, cert_blob)
     else:
         certificate_url = _upload_to_local(pdf_bytes, cert_blob)
 

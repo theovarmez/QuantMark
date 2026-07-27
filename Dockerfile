@@ -15,7 +15,7 @@ COPY . .
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev ca-certificates && \
+    libpq-dev ca-certificates postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system --gid 1001 quantmark && \
