@@ -20,10 +20,6 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app /app
 
-RUN chown -R quantmark:quantmark /app
-
-USER quantmark
-
 EXPOSE 8080
 
 CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
