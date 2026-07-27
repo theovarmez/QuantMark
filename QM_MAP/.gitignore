@@ -1,0 +1,5 @@
+# Firebase
+firebase.json
+.firebaserc
+.firebase/
+*.cache
