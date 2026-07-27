@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -17,6 +18,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -34,22 +36,20 @@ services:
 
   api:
     build: .
+    restart: unless-stopped
     ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+      - "8000:8080"
     environment:
-      ENVIRONMENT: development
-      PORT: "${PORT:-8000}"
+      ENVIRONMENT: production
+      PORT: "8080"
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/quantmark
-      SECRET_KEY: dev-secret-key
+      SECRET_KEY: "${SECRET_KEY:-change-me-in-production}"
       STORAGE_BACKEND: minio
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_BUCKET: quantmark-evidence
-      LOG_LEVEL: debug
-    command: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload
-    volumes:
-      - ./storage:/app/storage
+      LOG_LEVEL: info
     depends_on:
       db:
         condition: service_healthy
@@ -58,8 +58,9 @@ services:
 
   watcher:
     build: .
+    restart: unless-stopped
     environment:
-      QUANTMARK_API_URL: http://api:8000
+      QUANTMARK_API_URL: http://api:8080
       QUANTMARK_API_KEY: "${WATCHER_API_KEY}"
       TARGET_SERIAL_CODES: "${TARGET_SERIAL_CODES}"
       ALPACA_ENABLED: "true"
@@ -70,7 +71,7 @@ services:
       PASTEBIN_SEARCH_ENABLED: "${PASTEBIN_SEARCH_ENABLED:-false}"
       SCAN_INTERVAL_HOURS: "${SCAN_INTERVAL_HOURS:-6}"
       SIMULATE_INTERVAL_MINUTES: "${SIMULATE_INTERVAL_MINUTES:-5}"
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
     command: python -m watcher daemon
     depends_on:
       - api
