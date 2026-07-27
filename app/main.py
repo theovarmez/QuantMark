@@ -2,11 +2,13 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
@@ -115,15 +117,19 @@ app.include_router(watermarks.router)
 app.include_router(movements.router)
 app.include_router(reports.router)
 
+PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
+if PUBLIC_DIR.is_dir():
+    app.mount("/css", StaticFiles(directory=str(PUBLIC_DIR / "css")), name="css")
+    app.mount("/js", StaticFiles(directory=str(PUBLIC_DIR / "js")), name="js")
+    app.mount("/img", StaticFiles(directory=str(PUBLIC_DIR / "img")), name="img")
 
-@app.get("/")
+
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    return {
-        "name": "QuantMark API",
-        "version": "0.1.0",
-        "docs": "/docs",
-        "health": "/health",
-    }
+    index_html = PUBLIC_DIR / "index.html"
+    if index_html.is_file():
+        return HTMLResponse(content=index_html.read_text(encoding="utf-8"))
+    return {"name": "QuantMark API", "version": "0.1.0", "docs": "/docs"}
 
 
 @app.get("/stats")
