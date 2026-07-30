@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantMark — Escáner de Watermarks</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --card: #141414;
+    --border: rgba(255,255,255,0.1);
+    --text: #eaeaea;
+    --muted: #999;
+    --accent: #ff0031;
+    --ok: #00ff88;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 1rem;
+  }
+  h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); margin-bottom: 2rem; text-align: center; max-width: 480px; font-size: 0.9rem; }
+  .search-box {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 560px;
+  }
+  input {
+    flex: 1;
+    padding: 0.9rem 1.1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  button {
+    padding: 0.9rem 1.6rem;
+    border-radius: 9999px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .panel {
+    width: 100%;
+    max-width: 560px;
+    margin-top: 2rem;
+  }
+  .panel h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .result-item, .history-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.85rem;
+  }
+  .result-item a { color: #66aaff; text-decoration: none; }
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    background: rgba(255,255,255,0.08);
+    color: var(--muted);
+    margin-right: 0.5rem;
+  }
+  .empty { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 1rem; }
+  .error-msg { color: var(--accent); font-size: 0.85rem; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+  <h1>🔎 QuantMark</h1>
+  <p class="subtitle">
+    Escáner de fugas de watermark IDs. Busca un serial (ej. <code>QM-8F2A-91C0</code>)
+    o cualquier término en GitHub Code Search y Hugging Face Hub.
+  </p>
+
+  <div class="search-box">
+    <input id="q" type="text" placeholder="QM-XXXX-XXXX o término libre..." />
+    <button id="btn">Buscar</button>
+  </div>
+  <div id="error" class="error-msg"></div>
+
+  <div class="panel">
+    <h2>Resultados</h2>
+    <div id="results"><div class="empty">Todavía no hay búsquedas.</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Historial reciente (Supabase)</h2>
+    <div id="history"><div class="empty">Cargando historial...</div></div>
+  </div>
+
+<script>
+const btn = document.getElementById('btn');
+const input = document.getElementById('q');
+const resultsEl = document.getElementById('results');
+const historyEl = document.getElementById('history');
+const errorEl = document.getElementById('error');
+
+async function runSearch() {
+  const q = input.value.trim();
+  errorEl.textContent = '';
+  if (!q) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Buscando...';
+  resultsEl.innerHTML = '<div class="empty">Consultando GitHub y Hugging Face...</div>';
+
+  try {
+    const resp = await fetch('/api/scan?serial=' + encodeURIComponent(q));
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      errorEl.textContent = data.error || 'Ocurrió un error al buscar.';
+      resultsEl.innerHTML = '<div class="empty">Sin resultados.</div>';
+      return;
+    }
+
+    if (!data.results || data.results.length === 0) {
+      resultsEl.innerHTML = '<div class="empty">Sin coincidencias para "' + q + '".</div>';
+    } else {
+      resultsEl.innerHTML = data.results.map(r => `
+        <div class="result-item">
+          <span class="badge">${r.source}</span>
+          <a href="${r.url}" target="_blank" rel="noopener">${r.title || r.repo}</a>
+        </div>
+      `).join('');
+    }
+
+    if (data.errors) {
+      const msgs = Object.values(data.errors).join(' ');
+      if (msgs) errorEl.textContent = msgs;
+    }
+
+    loadHistory();
+  } catch (e) {
+    errorEl.textContent = 'No se pudo conectar con el servidor.';
+    resultsEl.innerHTML = '<div class="empty">Intenta de nuevo.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar';
+  }
+}
+
+async function loadHistory() {
+  try {
+    const resp = await fetch('/api/history');
+    const data = await resp.json();
+    const list = data.history || [];
+    if (list.length === 0) {
+      historyEl.innerHTML = '<div class="empty">Sin búsquedas registradas aún.</div>';
+      return;
+    }
+    historyEl.innerHTML = list.map(h => `
+      <div class="history-item">
+        <strong>${h.query}</strong>
+        <span class="badge">${h.results_count} resultado(s)</span>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:0.25rem;">
+          ${new Date(h.created_at).toLocaleString('es-CR')}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    historyEl.innerHTML = '<div class="empty">No se pudo cargar el historial.</div>';
+  }
+}
+
+btn.addEventListener('click', runSearch);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+
+loadHistory();
+</script>
+</body>
+</html>
