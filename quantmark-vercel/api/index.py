@@ -1,17 +1,19 @@
 """
-QuantMark Scan API — Vercel Serverless Function
-------------------------------------------------
-Reemplaza el watcher/scanner.py original (que corría en loop cada N horas)
-por una versión on-demand: el usuario da clic en "Buscar" en el frontend,
-esto consulta APIs externas en tiempo real y devuelve el resultado.
+QuantMark API — Vercel Serverless Function (entrypoint único)
+----------------------------------------------------------------
+El runtime actual de Vercel para Python espera un solo entrypoint.
+Este archivo combina las dos acciones (buscar y ver historial) usando
+el parámetro `action` en la query string:
+
+  GET /api?action=scan&serial=QM-XXXX-XXXX   -> busca en APIs externas
+  GET /api?action=history                    -> últimas búsquedas guardadas
 
 APIs externas consumidas (gratuitas, sin key obligatoria):
   - GitHub Code Search API  (https://docs.github.com/en/rest/search)
   - Hugging Face Hub API    (https://huggingface.co/docs/hub/api)
 
 Cada búsqueda exitosa se guarda como historial en Supabase (tabla
-search_history) vía su API REST (PostgREST), sin necesidad de instalar
-el SDK de Supabase (mantiene la función serverless liviana).
+search_history) vía su API REST (PostgREST).
 """
 
 import json
@@ -27,13 +29,10 @@ HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-# Serial codes válidos tienen forma QM-XXXX-XXXX, pero aceptamos cualquier
-# texto de búsqueda para que la demo también sirva con términos libres.
 SERIAL_PATTERN = re.compile(r"^QM-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}$")
 
 
 def search_github(query: str) -> list[dict]:
-    """Busca el término en código público indexado por GitHub."""
     headers = {"Accept": "application/vnd.github.v3+json"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
@@ -45,8 +44,6 @@ def search_github(query: str) -> list[dict]:
         timeout=10,
     )
     if not resp.ok:
-        # Sin token, GitHub permite pocas requests/min: no lo tratamos
-        # como error fatal, solo devolvemos vacío para esta fuente.
         return []
 
     data = resp.json()
@@ -62,7 +59,6 @@ def search_github(query: str) -> list[dict]:
 
 
 def search_huggingface(query: str) -> list[dict]:
-    """Busca el término en modelos, datasets y spaces publicados en Hugging Face Hub."""
     headers = {}
     if HUGGINGFACE_TOKEN:
         headers["Authorization"] = f"Bearer {HUGGINGFACE_TOKEN}"
@@ -89,7 +85,6 @@ def search_huggingface(query: str) -> list[dict]:
 
 
 def save_history(query: str, results_count: int, sources: dict) -> None:
-    """Inserta el registro de búsqueda en Supabase (tabla search_history)."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         return
     try:
@@ -109,49 +104,76 @@ def save_history(query: str, results_count: int, sources: dict) -> None:
             timeout=5,
         )
     except requests.RequestException:
-        # El historial es un plus, no debe tumbar la búsqueda si falla.
         pass
+
+
+def get_history() -> list[dict]:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return []
+    try:
+        resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/search_history",
+            params={"select": "*", "order": "created_at.desc", "limit": "15"},
+            headers={
+                "apikey": SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException:
+        return []
+
+
+def do_scan(query: str) -> dict:
+    if not query:
+        return {"_status": 400, "error": "Falta el parámetro 'serial' o 'q'."}
+    if len(query) > 120:
+        return {"_status": 400, "error": "La búsqueda es demasiado larga."}
+
+    github_results, hf_results = [], []
+    errors = {}
+
+    try:
+        github_results = search_github(query)
+    except requests.RequestException:
+        errors["github"] = "No se pudo conectar con GitHub en este momento."
+
+    try:
+        hf_results = search_huggingface(query)
+    except requests.RequestException:
+        errors["huggingface"] = "No se pudo conectar con Hugging Face en este momento."
+
+    all_results = github_results + hf_results
+    sources = {"github": len(github_results), "huggingface": len(hf_results)}
+    save_history(query, len(all_results), sources)
+
+    return {
+        "_status": 200,
+        "query": query,
+        "is_valid_serial": bool(SERIAL_PATTERN.match(query)),
+        "count": len(all_results),
+        "sources": sources,
+        "results": all_results,
+        "errors": errors or None,
+    }
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
+        action = (params.get("action") or ["scan"])[0]
+
+        if action == "history":
+            self._send(200, {"history": get_history()})
+            return
+
         query = (params.get("serial") or params.get("q") or [""])[0].strip()
-
-        if not query:
-            self._send(400, {"error": "Falta el parámetro 'serial' o 'q'."})
-            return
-        if len(query) > 120:
-            self._send(400, {"error": "La búsqueda es demasiado larga."})
-            return
-
-        github_results, hf_results = [], []
-        errors = {}
-
-        try:
-            github_results = search_github(query)
-        except requests.RequestException as e:
-            errors["github"] = "No se pudo conectar con GitHub en este momento."
-
-        try:
-            hf_results = search_huggingface(query)
-        except requests.RequestException as e:
-            errors["huggingface"] = "No se pudo conectar con Hugging Face en este momento."
-
-        all_results = github_results + hf_results
-        sources = {"github": len(github_results), "huggingface": len(hf_results)}
-
-        save_history(query, len(all_results), sources)
-
-        self._send(200, {
-            "query": query,
-            "is_valid_serial": bool(SERIAL_PATTERN.match(query)),
-            "count": len(all_results),
-            "sources": sources,
-            "results": all_results,
-            "errors": errors or None,
-        })
+        result = do_scan(query)
+        status = result.pop("_status")
+        self._send(status, result)
 
     def _send(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
