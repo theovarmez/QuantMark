@@ -45,7 +45,7 @@ APIs externas consumidas en tiempo real:
 
 ## Link de producción
 
-- App desplegada en Vercel: `[completar con el link una vez desplegado]`
+- App desplegada en Vercel: `https://quant-mark.vercel.app`
 - Demo original (Cloud Run, prototipo completo de la actividad en clase):
   https://quantmark-288885439535.us-central1.run.app
 
